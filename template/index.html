@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arduino Sensor Dashboard</title>
+    <script>
+        function updateData() {
+            fetch("/data")
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById("temp").innerText = data.temperature + " °C";
+                document.getElementById("humidity").innerText = data.humidity + " %";
+                document.getElementById("pressure").innerText = data.pressure + " hPa";
+                document.getElementById("water_level").innerText = data.water_level;
+            })
+            .catch(error => console.log("Error fetching data:", error));
+        }
+
+        setInterval(updateData, 2000); // Update data every 2 seconds
+    </script>
+</head>
+<body>
+    <h1>Arduino Sensor Data</h1>
+    <p><strong>Temperature:</strong> <span id="temp">Loading...</span></p>
+    <p><strong>Humidity:</strong> <span id="humidity">Loading...</span></p>
+    <p><strong>Pressure:</strong> <span id="pressure">Loading...</span></p>
+    <p><strong>Water Level:</strong> <span id="water_level">Loading...</span></p>
+</body>
+</html>
