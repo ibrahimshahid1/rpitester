@@ -4,27 +4,44 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Arduino Sensor Dashboard</title>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; }
+        h1 { color: #007BFF; }
+        .data-box {
+            display: inline-block;
+            padding: 15px;
+            margin: 10px;
+            border-radius: 8px;
+            background-color: #f8f9fa;
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.2);
+        }
+    </style>
     <script>
         function updateData() {
-            fetch("/data")
+            fetch("/data")  // Request data from Flask server
             .then(response => response.json())
             .then(data => {
-                document.getElementById("temp").innerText = data.temperature + " °C";
-                document.getElementById("humidity").innerText = data.humidity + " %";
-                document.getElementById("pressure").innerText = data.pressure + " hPa";
-                document.getElementById("water_level").innerText = data.water_level;
+                if (!data.error) {  // If no error, update the webpage
+                    document.getElementById("temp").innerText = data.temperature + " °C";
+                    document.getElementById("humidity").innerText = data.humidity + " %";
+                    document.getElementById("pressure").innerText = data.pressure + " hPa";
+                    document.getElementById("water_level").innerText = data.water_level;
+                } else {
+                    console.log("Failed to retrieve data.");
+                }
             })
             .catch(error => console.log("Error fetching data:", error));
         }
 
-        setInterval(updateData, 2000); // Update data every 2 seconds
+        setInterval(updateData, 2000); // Fetch data every 2 seconds
+        window.onload = updateData;    // Fetch data immediately when page loads
     </script>
 </head>
 <body>
-    <h1>Arduino Sensor Data</h1>
-    <p><strong>Temperature:</strong> <span id="temp">Loading...</span></p>
-    <p><strong>Humidity:</strong> <span id="humidity">Loading...</span></p>
-    <p><strong>Pressure:</strong> <span id="pressure">Loading...</span></p>
-    <p><strong>Water Level:</strong> <span id="water_level">Loading...</span></p>
+    <h1>Arduino Sensor Dashboard</h1>
+    <div class="data-box"><strong>Temperature:</strong> <span id="temp">Loading...</span></div>
+    <div class="data-box"><strong>Humidity:</strong> <span id="humidity">Loading...</span></div>
+    <div class="data-box"><strong>Pressure:</strong> <span id="pressure">Loading...</span></div>
+    <div class="data-box"><strong>Water Level:</strong> <span id="water_level">Loading...</span></div>
 </body>
 </html>
