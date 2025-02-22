@@ -1,52 +1,51 @@
 import serial
 import time
 import re
+import firebase_admin
+from firebase_admin import credentials, db
 from flask import Flask, render_template, jsonify
 
-# Initialize Serial Connection
+# Load Firebase credentials
+cred = credentials.Certificate("rpitester-firebase-adminsdk-fbsvc-2c2870fbf2.json")  # Ensure this file is in your project directory
+firebase_admin.initialize_app(cred, {
+    "databaseURL": "https://rpitester-default-rtdb.firebaseio.com/"  # Replace with your Firebase URL
+})
+
+# Initialize Serial Connection (Modify based on your Arduino's port)
 ser = serial.Serial('/dev/ttyACM0', 9600, timeout=1)
 time.sleep(2)  # Allow Arduino time to initialize
 
 app = Flask(__name__)
 
-# Global variables to store data and last read time
-sensor_data = None
-last_read_time = 0  # Store last read timestamp
-
 def read_serial_data():
-    """ Reads and parses data from the Arduino serial output once per hour """
-    global sensor_data, last_read_time
-
-    current_time = time.time()
-    if sensor_data and (current_time - last_read_time < 900):  # Check if an hour has passed
-        print("Returning cached data (not reading from serial)")
-        return sensor_data
-
+    """ Reads and sends Arduino sensor data to Firebase """
     try:
         ser.flush()
         data = []
 
-        # Read multiple lines to ensure we get all sensor data
-        for _ in range(5):  # Arduino prints 5 lines per cycle
+        for _ in range(5):  # Read multiple lines
             line = ser.readline().decode('utf-8', errors='ignore').strip()
-            print(f"Received: {line}")  # Debugging output
+            print(f"Received: {line}")
 
-            # Extract numerical values from the received line
-            match = re.search(r"[-+]?\d*\.\d+|\d+", line)  # Extract first number in line
+            match = re.search(r"[-+]?\d*\.\d+|\d+", line)  # Extract numbers
             if match:
                 data.append(float(match.group()))
 
-        # Ensure we have all expected values before returning
         if len(data) >= 4:
             temperature, humidity, pressure, water_level = data[:4]
+            timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
+
             sensor_data = {
+                "timestamp": timestamp,
                 "temperature": round(temperature, 2),
                 "humidity": round(humidity, 2),
                 "pressure": round(pressure, 2),
                 "water_level": "Detected" if int(water_level) == 1 else "Not Detected",
-                "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
             }
-            last_read_time = current_time  # Update last read time
+
+            # Store data in Firebase (Realtime Database)
+            db.reference("sensor_data").push(sensor_data)
+
             return sensor_data
     except Exception as e:
         print(f"Serial Read Error: {e}")
@@ -60,11 +59,21 @@ def index():
 
 @app.route("/data")
 def get_data():
-    """ API route to send sensor data (read only once per hour) """
-    data = read_serial_data()
-    if data:
-        return jsonify(data)
-    return jsonify({"error": "Failed to read from Arduino"}), 500
+    """ API route to get the latest sensor data """
+    ref = db.reference("sensor_data").order_by_key().limit_to_last(1).get()
+    latest_entry = list(ref.values())[0] if ref else None
+
+    if latest_entry:
+        return jsonify(latest_entry)
+    return jsonify({"error": "No data available"}), 500
+
+@app.route("/history")
+def get_history():
+    """ API route to get historical sensor data """
+    ref = db.reference("sensor_data").order_by_key().limit_to_last(100).get()
+    history_data = list(ref.values()) if ref else []
+    
+    return jsonify(history_data)
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
