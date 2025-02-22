@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Arduino Sensor Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script> <!-- Chart.js Library -->
     <style>
         body { font-family: Arial, sans-serif; text-align: center; }
         h1 { color: #007BFF; }
@@ -15,27 +16,19 @@
             background-color: #f8f9fa;
             box-shadow: 2px 2px 5px rgba(0,0,0,0.2);
         }
-    </style>
-    <script>
-        function updateData() {
-            fetch("/data")  // Request data from Flask server
-            .then(response => response.json())
-            .then(data => {
-                if (!data.error) {  // If no error, update the webpage
-                    document.getElementById("temp").innerText = data.temperature + " °C";
-                    document.getElementById("humidity").innerText = data.humidity + " %";
-                    document.getElementById("pressure").innerText = data.pressure + " hPa";
-                    document.getElementById("water_level").innerText = data.water_level;
-                } else {
-                    console.log("Failed to retrieve data.");
-                }
-            })
-            .catch(error => console.log("Error fetching data:", error));
+        canvas { max-width: 600px; margin: 20px auto; }
+        table {
+            width: 60%;
+            margin: auto;
+            border-collapse: collapse;
         }
-
-        setInterval(updateData, 2000); // Fetch data every 2 seconds
-        window.onload = updateData;    // Fetch data immediately when page loads
-    </script>
+        th, td {
+            padding: 8px;
+            border: 1px solid #ddd;
+            text-align: center;
+        }
+        th { background-color: #007BFF; color: white; }
+    </style>
 </head>
 <body>
     <h1>Arduino Sensor Dashboard</h1>
@@ -43,5 +36,111 @@
     <div class="data-box"><strong>Humidity:</strong> <span id="humidity">Loading...</span></div>
     <div class="data-box"><strong>Pressure:</strong> <span id="pressure">Loading...</span></div>
     <div class="data-box"><strong>Water Level:</strong> <span id="water_level">Loading...</span></div>
+
+    <h2>Live Charts</h2>
+    <canvas id="temperatureChart"></canvas>
+    <canvas id="humidityChart"></canvas>
+    <canvas id="pressureChart"></canvas>
+
+    <h2>Historical Data</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Time</th>
+                <th>Temperature (°C)</th>
+                <th>Humidity (%)</th>
+                <th>Pressure (hPa)</th>
+                <th>Water Level</th>
+            </tr>
+        </thead>
+        <tbody id="historyTable"></tbody>
+    </table>
+
+    <script>
+        let tempChart, humidityChart, pressureChart;
+
+        async function updateData() {
+            try {
+                const response = await fetch("/data");
+                const data = await response.json();
+                
+                if (!data.error) {
+                    document.getElementById("temp").innerText = data.temperature + " °C";
+                    document.getElementById("humidity").innerText = data.humidity + " %";
+                    document.getElementById("pressure").innerText = data.pressure + " hPa";
+                    document.getElementById("water_level").innerText = data.water_level;
+                }
+            } catch (error) {
+                console.log("Error fetching data:", error);
+            }
+        }
+
+        async function updateCharts() {
+            try {
+                const response = await fetch("/history");
+                const history = await response.json();
+
+                const labels = history.map(entry => entry.timestamp);
+                const tempData = history.map(entry => entry.temperature);
+                const humidityData = history.map(entry => entry.humidity);
+                const pressureData = history.map(entry => entry.pressure);
+
+                if (!tempChart) {
+                    const ctx1 = document.getElementById("temperatureChart").getContext("2d");
+                    tempChart = new Chart(ctx1, {
+                        type: "line",
+                        data: { labels, datasets: [{ label: "Temperature (°C)", data: tempData, borderColor: "red", fill: false }] }
+                    });
+                } else {
+                    tempChart.data.labels = labels;
+                    tempChart.data.datasets[0].data = tempData;
+                    tempChart.update();
+                }
+
+                if (!humidityChart) {
+                    const ctx2 = document.getElementById("humidityChart").getContext("2d");
+                    humidityChart = new Chart(ctx2, {
+                        type: "line",
+                        data: { labels, datasets: [{ label: "Humidity (%)", data: humidityData, borderColor: "blue", fill: false }] }
+                    });
+                } else {
+                    humidityChart.data.labels = labels;
+                    humidityChart.data.datasets[0].data = humidityData;
+                    humidityChart.update();
+                }
+
+                if (!pressureChart) {
+                    const ctx3 = document.getElementById("pressureChart").getContext("2d");
+                    pressureChart = new Chart(ctx3, {
+                        type: "line",
+                        data: { labels, datasets: [{ label: "Pressure (hPa)", data: pressureData, borderColor: "green", fill: false }] }
+                    });
+                } else {
+                    pressureChart.data.labels = labels;
+                    pressureChart.data.datasets[0].data = pressureData;
+                    pressureChart.update();
+                }
+
+                let tableHTML = "";
+                history.forEach(entry => {
+                    tableHTML += `<tr>
+                        <td>${entry.timestamp}</td>
+                        <td>${entry.temperature} °C</td>
+                        <td>${entry.humidity} %</td>
+                        <td>${entry.pressure} hPa</td>
+                        <td>${entry.water_level}</td>
+                    </tr>`;
+                });
+                document.getElementById("historyTable").innerHTML = tableHTML;
+            } catch (error) {
+                console.log("Error fetching history:", error);
+            }
+        }
+
+        setInterval(() => {
+            updateData();
+            updateCharts();
+        }, 2000);
+    </script>
 </body>
 </html>
