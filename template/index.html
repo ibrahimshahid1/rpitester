@@ -4,7 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Arduino Sensor Dashboard</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script> <!-- Chart.js Library -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.15.0/firebase-database.js"></script>
+
     <style>
         body { font-family: Arial, sans-serif; text-align: center; }
         h1 { color: #007BFF; }
@@ -17,16 +20,8 @@
             box-shadow: 2px 2px 5px rgba(0,0,0,0.2);
         }
         canvas { max-width: 600px; margin: 20px auto; }
-        table {
-            width: 60%;
-            margin: auto;
-            border-collapse: collapse;
-        }
-        th, td {
-            padding: 8px;
-            border: 1px solid #ddd;
-            text-align: center;
-        }
+        table { width: 60%; margin: auto; border-collapse: collapse; }
+        th, td { padding: 8px; border: 1px solid #ddd; text-align: center; }
         th { background-color: #007BFF; color: white; }
     </style>
 </head>
@@ -57,90 +52,29 @@
     </table>
 
     <script>
-        let tempChart, humidityChart, pressureChart;
+        const firebaseConfig = {
+            apiKey: "YOUR-API-KEY",
+            authDomain: "your-project.firebaseapp.com",
+            databaseURL: "https://your-project.firebaseio.com/",
+            projectId: "your-project-id",
+        };
 
-        async function updateData() {
-            try {
-                const response = await fetch("/data");
-                const data = await response.json();
-                
-                if (!data.error) {
+        const app = firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+
+        async function fetchData() {
+            database.ref("sensor_data").limitToLast(1).on("value", (snapshot) => {
+                if (snapshot.exists()) {
+                    const data = Object.values(snapshot.val())[0];
                     document.getElementById("temp").innerText = data.temperature + " °C";
                     document.getElementById("humidity").innerText = data.humidity + " %";
                     document.getElementById("pressure").innerText = data.pressure + " hPa";
                     document.getElementById("water_level").innerText = data.water_level;
                 }
-            } catch (error) {
-                console.log("Error fetching data:", error);
-            }
+            });
         }
 
-        async function updateCharts() {
-            try {
-                const response = await fetch("/history");
-                const history = await response.json();
-
-                const labels = history.map(entry => entry.timestamp);
-                const tempData = history.map(entry => entry.temperature);
-                const humidityData = history.map(entry => entry.humidity);
-                const pressureData = history.map(entry => entry.pressure);
-
-                if (!tempChart) {
-                    const ctx1 = document.getElementById("temperatureChart").getContext("2d");
-                    tempChart = new Chart(ctx1, {
-                        type: "line",
-                        data: { labels, datasets: [{ label: "Temperature (°C)", data: tempData, borderColor: "red", fill: false }] }
-                    });
-                } else {
-                    tempChart.data.labels = labels;
-                    tempChart.data.datasets[0].data = tempData;
-                    tempChart.update();
-                }
-
-                if (!humidityChart) {
-                    const ctx2 = document.getElementById("humidityChart").getContext("2d");
-                    humidityChart = new Chart(ctx2, {
-                        type: "line",
-                        data: { labels, datasets: [{ label: "Humidity (%)", data: humidityData, borderColor: "blue", fill: false }] }
-                    });
-                } else {
-                    humidityChart.data.labels = labels;
-                    humidityChart.data.datasets[0].data = humidityData;
-                    humidityChart.update();
-                }
-
-                if (!pressureChart) {
-                    const ctx3 = document.getElementById("pressureChart").getContext("2d");
-                    pressureChart = new Chart(ctx3, {
-                        type: "line",
-                        data: { labels, datasets: [{ label: "Pressure (hPa)", data: pressureData, borderColor: "green", fill: false }] }
-                    });
-                } else {
-                    pressureChart.data.labels = labels;
-                    pressureChart.data.datasets[0].data = pressureData;
-                    pressureChart.update();
-                }
-
-                let tableHTML = "";
-                history.forEach(entry => {
-                    tableHTML += `<tr>
-                        <td>${entry.timestamp}</td>
-                        <td>${entry.temperature} °C</td>
-                        <td>${entry.humidity} %</td>
-                        <td>${entry.pressure} hPa</td>
-                        <td>${entry.water_level}</td>
-                    </tr>`;
-                });
-                document.getElementById("historyTable").innerHTML = tableHTML;
-            } catch (error) {
-                console.log("Error fetching history:", error);
-            }
-        }
-
-        setInterval(() => {
-            updateData();
-            updateCharts();
-        }, 2000);
+        fetchData();
     </script>
 </body>
 </html>
